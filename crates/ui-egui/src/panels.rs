@@ -151,6 +151,17 @@ fn slot_tool(ui: &egui::Ui, current: Tool, slot: &[Tool], key: egui::Id) -> Tool
     ui.data(|d| d.get_temp::<Tool>(key)).filter(|t| slot.contains(t)).unwrap_or(slot[0])
 }
 
+/// Advance in the visible flyout order, independently of shortcut-key groups.
+fn next_toolbar_tool(slot: &[Tool], displayed: Tool) -> Option<Tool> {
+    // Adobe documents three Pen exceptions but not their starting/destination semantics.
+    // Preserve this slot until reference evidence resolves them (see docs/ui-design.md).
+    if matches!(displayed, Tool::Pen | Tool::FreeformPen | Tool::CurvaturePen | Tool::AddAnchorPoint | Tool::DeleteAnchorPoint | Tool::ConvertPoint) {
+        return None;
+    }
+    let Some(index) = slot.iter().position(|tool| *tool == displayed) else { return slot.first().copied() };
+    slot.get(index.saturating_add(1)).or_else(|| slot.first()).copied()
+}
+
 /// [`TOOL_SECTIONS`] without the tools hidden in Edit › Toolbar (`hidden` holds tool names: the
 /// dialog writes `Tool` debug names, `edit.toolbar` takes any name `Tool::from_name` reads). A
 /// slot keeps only its visible tools, so its flyout lists just those; a slot with none left is
@@ -227,8 +238,12 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             ui.spacing_mut().item_spacing = vec2(2.0, 3.0);
             let flyout_id = egui::Id::unique("tool-flyout");
             let held_id = flyout_id.with("held");
+            let alt_id = flyout_id.with("alt-press");
             if ui.input(|i| i.pointer.any_pressed()) {
-                ui.data_mut(|d| d.remove::<egui::Id>(held_id));
+                ui.data_mut(|d| {
+                    d.remove::<egui::Id>(held_id);
+                    d.remove::<egui::Id>(alt_id);
+                });
             }
             // No tool tooltips over an open flyout, or while a button is held to open one (#4450):
             // Photoshop shows none there. (The flyout is our own Area, so egui's rule for popups
@@ -274,16 +289,41 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                     if slot.len() > 1 {
                                         paint_toolbar_flyout_indicator(ui, &t, &resp);
                                     }
-                                    if resp.clicked() && ui.data(|d| d.get_temp::<egui::Id>(held_id)) != Some(key) {
-                                        crate::tool_memory::select(app, tool);
+                                    // Latch the press event, not the release frame's modifiers. A hold or
+                                    // drag still belongs to the flyout, whose held marker suppresses clicks.
+                                    let alt_press = (resp.is_pointer_button_down_on() || resp.clicked())
+                                        && ui.input(|i| {
+                                            i.events.iter().any(|event| {
+                                                matches!(event,
+                                            egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers }
+                                                if modifiers.alt && resp.rect.contains(*pos))
+                                            })
+                                        });
+                                    if alt_press {
+                                        ui.data_mut(|d| d.insert_temp(alt_id, key));
+                                    }
+                                    let click = resp.clicked() && ui.data(|d| d.get_temp::<egui::Id>(held_id)) != Some(key);
+                                    let alt_click =
+                                        click && ui.input(|i| i.pointer.primary_released()) && ui.data(|d| d.get_temp::<egui::Id>(alt_id)) == Some(key);
+                                    if click {
+                                        let chosen = if alt_click { next_toolbar_tool(slot, tool).unwrap_or(tool) } else { tool };
+                                        crate::tool_memory::select(app, chosen);
+                                        if alt_click {
+                                            // Close before drawing any rows: this release makes one explicit
+                                            // choice and cannot also select a stale flyout row.
+                                            ui.data_mut(|d| d.remove::<(egui::Id, Rect)>(flyout_id));
+                                        }
+                                    }
+                                    if ui.input(|i| i.pointer.primary_released()) && ui.data(|d| d.get_temp::<egui::Id>(alt_id)) == Some(key) {
+                                        ui.data_mut(|d| d.remove::<egui::Id>(alt_id));
                                     }
                                     // Double-clicking the Hand tool fits the image on screen (Photoshop).
-                                    if resp.double_clicked() && tool == Tool::Hand {
+                                    if resp.double_clicked() && !alt_click && tool == Tool::Hand {
                                         crate::tool_memory::select(app, tool);
                                         // With no document open there is nothing to fit.
                                         let _ = app.run("view.fitOnScreen", json!({}));
                                     }
-                                    if resp.double_clicked() && tool == Tool::Zoom {
+                                    if resp.double_clicked() && !alt_click && tool == Tool::Zoom {
                                         crate::tool_memory::select(app, tool);
                                         let _ = app.run("view.actualPixels", json!({}));
                                     }
@@ -7979,3 +8019,6 @@ mod panel_state_migration_tests {
         assert_eq!(PanelState::load(&ctx, new).map(|p| p.size().x), Some(290.0));
     }
 }
+
+#[cfg(test)]
+mod toolbar_cycle_tests;
