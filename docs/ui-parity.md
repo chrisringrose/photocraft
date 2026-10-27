@@ -52,7 +52,7 @@ Triangle and Curvature Pen (minus legacy Rounded Rectangle and Targeted Adjustme
 | Letter shortcuts, ⇧+letter cycles the group, "Use Shift Key for Tool Switch" (on by default, as in Photoshop) | done | `shortcuts.rs:413` |
 | Group remembers the last tool used | partial | L always resets to Lasso (#2608) |
 | Press-and-hold or click-drag opens the flyout | missing | right-click only (#2301) |
-| Alt/Option-click cycles the clicked visible toolbar group and wraps, starting from its displayed/remembered member | partial (2026-10-26) | `panels.rs`, `panels/toolbar_cycle_tests.rs`; #8731. Hidden members omitted; tools without letter shortcuts included. Pen group deferred: Adobe names three exceptions but their precise behavior has not been verified. Press-time modifiers and existing hold/drag arbitration follow PhotoCraft conventions. No current Photoshop observation or score change. |
+| Alt/Option-click cycles the clicked visible toolbar group and wraps, starting from its displayed/remembered member | partial (2026-10-26) | `panels/toolbar.rs`, `panels/toolbar/cycle_tests.rs`; #8731. Hidden members omitted; tools without letter shortcuts included. Pen group deferred: Adobe names three exceptions but their precise behavior has not been verified. Press-time modifiers and existing hold/drag arbitration follow PhotoCraft conventions. No current Photoshop observation or score change. |
 | Edit Toolbar customization | done | `edit.toolbar` |
 | Last selected tool restored after quitting and relaunching; temporary tool switches excluded | done | `tool_memory.rs`; `prefs_ui::tests::selected_tool_survives_a_restart_without_option_changes`, `selected_tool_excludes_temporary_switches` |
 
