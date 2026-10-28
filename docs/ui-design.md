@@ -135,8 +135,10 @@ PhotoCraft latches Alt/Option from the primary press and selects on release. Add
 modifier after pressing does not cycle; releasing it before the button still does. A hold
 or drag-away retains the existing flyout behavior and its concluding release does not
 cycle. A short modifier-click closes an open flyout and makes only the cycling choice.
-Keyboard activation remains ordinary selection; rapid modifier-clicks do not invoke the
-Hand/Zoom double-click view actions.
+Keyboard activation remains ordinary selection. Hand/Zoom double-click view actions require
+two consecutive ordinary pointer clicks on the same slot; a modifier-click followed by an
+ordinary click cannot invoke them. A release elsewhere or a flyout-owned gesture breaks
+that pair, while genuine ordinary double-clicks retain their existing view actions.
 
 Reference boundary: Adobe's [CS6 manual](https://helpx.adobe.com/pdf/cs6/photoshop_reference.pdf),
 "Keys for selecting tools", documents the gesture with Add Anchor Point, Delete Anchor Point

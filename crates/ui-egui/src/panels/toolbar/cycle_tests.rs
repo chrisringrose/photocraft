@@ -329,3 +329,83 @@ fn rapid_alt_clicks_on_hand_and_a_singleton_do_not_run_double_click_view_actions
         }
     }
 }
+
+/// A modifier click and an ordinary click must never combine into a view double-click.
+#[test]
+fn mixed_modifier_clicks_do_not_run_double_click_view_actions() {
+    for hand in [false, true] {
+        for alt_first in [false, true] {
+            for release_alt_early in [false, true] {
+                let mut h = harness();
+                h.state_mut().run("file.new", json!({"width": 8, "height": 8})).unwrap();
+                h.state_mut().ui.views[0].fit_pending = false;
+                h.state_mut().ui.views[0].zoom = 0.5;
+                let initial = if hand && alt_first {
+                    Tool::RotateView
+                } else if hand {
+                    Tool::Hand
+                } else {
+                    Tool::Zoom
+                };
+                crate::tool_memory::select(h.state_mut(), initial);
+                h.run_steps(1);
+                let label = match initial {
+                    Tool::RotateView => "Rotate View Tool  (R)",
+                    Tool::Hand => "Hand Tool  (H)",
+                    _ => "Zoom Tool  (Z)",
+                };
+                let at = h.get_by_label(label).rect().center();
+                let modifiers = if alt_first { [egui::Modifiers::ALT, egui::Modifiers::NONE] } else { [egui::Modifiers::NONE, egui::Modifiers::ALT] };
+                for modifiers in modifiers {
+                    pointer(&mut h, at, true, modifiers);
+                    if modifiers.alt && release_alt_early {
+                        h.event(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+                        h.run_steps(1);
+                    }
+                    pointer(&mut h, at, false, if release_alt_early { egui::Modifiers::NONE } else { modifiers });
+                    assert!(!h.state().ui.views[0].fit_pending, "hand={hand}, alt_first={alt_first}, early_release={release_alt_early}");
+                    assert_eq!(h.state().ui.views[0].zoom, 0.5, "hand={hand}, alt_first={alt_first}, early_release={release_alt_early}");
+                }
+                assert_eq!(
+                    h.state().ui.tool,
+                    if !hand {
+                        Tool::Zoom
+                    } else if alt_first {
+                        Tool::Hand
+                    } else {
+                        Tool::RotateView
+                    }
+                );
+            }
+        }
+    }
+}
+
+/// Preserve genuine ordinary double-clicks after an earlier modifier gesture has timed out.
+#[test]
+fn ordinary_double_clicks_still_run_view_actions_after_modifier_clicks() {
+    for tool in [Tool::Hand, Tool::Zoom] {
+        let mut h = harness();
+        h.state_mut().run("file.new", json!({"width": 8, "height": 8})).unwrap();
+        h.state_mut().ui.views[0].fit_pending = false;
+        h.state_mut().ui.views[0].zoom = 0.5;
+        let at = h.get_by_label("Zoom Tool  (Z)").rect().center();
+        pointer(&mut h, at, true, egui::Modifiers::ALT);
+        pointer(&mut h, at, false, egui::Modifiers::ALT);
+        h.run_steps(60);
+        crate::tool_memory::select(h.state_mut(), tool);
+        h.run_steps(1);
+        let at = h.get_by_label(if tool == Tool::Hand { "Hand Tool  (H)" } else { "Zoom Tool  (Z)" }).rect().center();
+        pointer(&mut h, at, true, egui::Modifiers::NONE);
+        pointer(&mut h, at, false, egui::Modifiers::NONE);
+        assert!(!h.state().ui.views[0].fit_pending, "the first ordinary click only selects");
+        assert_eq!(h.state().ui.views[0].zoom, 0.5);
+        pointer(&mut h, at, true, egui::Modifiers::NONE);
+        pointer(&mut h, at, false, egui::Modifiers::NONE);
+        if tool == Tool::Hand {
+            assert!(h.state().ui.views[0].fit_pending, "ordinary Hand double-click still fits the view");
+        } else {
+            assert_eq!(h.state().ui.views[0].zoom, 1.0, "ordinary Zoom double-click still restores actual pixels");
+        }
+    }
+}

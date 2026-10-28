@@ -133,6 +133,13 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             let flyout_id = egui::Id::unique("tool-flyout");
             let held_id = flyout_id.with("held");
             let alt_id = flyout_id.with("alt-press");
+            let plain_click_id = flyout_id.with("plain-click");
+            let previous_plain_click = ui.data(|d| d.get_temp::<egui::Id>(plain_click_id));
+            if ui.input(|i| i.pointer.primary_released()) {
+                // egui counts clicks without checking modifiers. A release elsewhere or a
+                // modifier gesture must break the pair used by Hand/Zoom view actions.
+                ui.data_mut(|d| d.remove::<egui::Id>(plain_click_id));
+            }
             if ui.input(|i| i.pointer.any_pressed()) {
                 ui.data_mut(|d| {
                     d.remove::<egui::Id>(held_id);
@@ -199,6 +206,11 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                     let click = resp.clicked() && ui.data(|d| d.get_temp::<egui::Id>(held_id)) != Some(key);
                                     let alt_click =
                                         click && ui.input(|i| i.pointer.primary_released()) && ui.data(|d| d.get_temp::<egui::Id>(alt_id)) == Some(key);
+                                    let plain_click = click && !alt_click && ui.input(|i| i.pointer.primary_released());
+                                    let plain_double_click = plain_click && previous_plain_click == Some(key) && resp.double_clicked();
+                                    if plain_click {
+                                        ui.data_mut(|d| d.insert_temp(plain_click_id, key));
+                                    }
                                     if click {
                                         let chosen = if alt_click { next_toolbar_tool(slot, tool).unwrap_or(tool) } else { tool };
                                         crate::tool_memory::select(app, chosen);
@@ -212,12 +224,12 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                         ui.data_mut(|d| d.remove::<egui::Id>(alt_id));
                                     }
                                     // Double-clicking the Hand tool fits the image on screen (Photoshop).
-                                    if resp.double_clicked() && !alt_click && tool == Tool::Hand {
+                                    if plain_double_click && tool == Tool::Hand {
                                         crate::tool_memory::select(app, tool);
                                         // With no document open there is nothing to fit.
                                         let _ = app.run("view.fitOnScreen", json!({}));
                                     }
-                                    if resp.double_clicked() && !alt_click && tool == Tool::Zoom {
+                                    if plain_double_click && tool == Tool::Zoom {
                                         crate::tool_memory::select(app, tool);
                                         let _ = app.run("view.actualPixels", json!({}));
                                     }
