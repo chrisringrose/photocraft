@@ -91,6 +91,7 @@ pub(super) fn tool_flyout_release(row: Rect, pointer: Option<Pos2>, released: bo
     released && from_button && pointer.is_some_and(|p| row.contains(p))
 }
 
+/// Render toolbar tools, flyouts and color chips using the explicit tool-selection path.
 pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let (w1, bx, m) = if t.pro { (40.0, 30.0, 5i8) } else { (50.0, 36.0, 7i8) };

@@ -2,10 +2,12 @@
 use super::*;
 use egui_kittest::{Harness, kittest::Queryable};
 
+/// Build the default Studio fixture with accessibility checks enabled.
 fn harness() -> Harness<'static, PhotocraftApp> {
     configured_harness(theme::ThemeKind::Studio, false, 1.0, false)
 }
 
+/// Settle a toolbar fixture at the requested theme, column count and display scale.
 fn configured_harness(kind: theme::ThemeKind, double: bool, scale: f32, gpu: bool) -> Harness<'static, PhotocraftApp> {
     let mut ready = false;
     let mut builder = Harness::builder().with_size(vec2(1200.0, 1500.0)).with_pixels_per_point(scale).with_step_dt(1.0 / 60.0);
@@ -35,12 +37,14 @@ fn configured_harness(kind: theme::ThemeKind, double: bool, scale: f32, gpu: boo
     h
 }
 
+/// Deliver one primary-button transition and advance exactly one frame.
 fn pointer(h: &mut Harness<'_, PhotocraftApp>, pos: Pos2, pressed: bool, modifiers: egui::Modifiers) {
     h.event(egui::Event::PointerMoved(pos));
     h.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers });
     h.run_steps(1);
 }
 
+/// Require release before advancing, including wraparound, without a second selection next frame.
 #[test]
 fn alt_click_cycles_the_visible_group_and_wraps_once_per_click() {
     let mut h = harness();
@@ -56,6 +60,7 @@ fn alt_click_cycles_the_visible_group_and_wraps_once_per_click() {
     }
 }
 
+/// Cycle from the icon a dormant group displays rather than from the active tool elsewhere.
 #[test]
 fn inactive_group_starts_from_its_remembered_icon() {
     let mut h = harness();
@@ -69,6 +74,7 @@ fn inactive_group_starts_from_its_remembered_icon() {
     assert_eq!(h.state().ui.tool, Tool::MixerBrush);
 }
 
+/// Keep visible flyout order authoritative when letter shortcuts omit tools or are rebound.
 #[test]
 fn marquee_cycle_includes_tools_without_shortcuts_and_ignores_rebindings() {
     let mut h = harness();
@@ -84,6 +90,7 @@ fn marquee_cycle_includes_tools_without_shortcuts_and_ignores_rebindings() {
     }
 }
 
+/// Exercise stale hidden memory, a single visible choice and a completely hidden group.
 #[test]
 fn hidden_members_singletons_and_stale_memory_follow_the_visible_slot() {
     let mut h = harness();
@@ -107,6 +114,7 @@ fn hidden_members_singletons_and_stale_memory_follow_the_visible_slot() {
     assert!(h.query_by_label("Brush Tool  (B)").is_none());
 }
 
+/// Distinguish press-time Alt from release-time Alt and preserve ordinary keyboard selection.
 #[test]
 fn alt_is_latched_at_press_and_keyboard_activation_is_plain_selection() {
     let mut h = harness();
@@ -127,6 +135,7 @@ fn alt_is_latched_at_press_and_keyboard_activation_is_plain_selection() {
     assert_eq!(h.state().ui.tool, Tool::Pencil);
 }
 
+/// Preserve the initiating Alt state when press and release arrive in the same input frame.
 #[test]
 fn a_same_frame_click_uses_its_press_modifiers() {
     let mut h = harness();
@@ -140,10 +149,12 @@ fn a_same_frame_click_uses_its_press_modifiers() {
     assert_eq!(h.state().ui.tool, Tool::Pencil);
 }
 
+/// Report whether the fixture currently retains the toolbar flyout area.
 fn flyout_open(h: &Harness<'_, PhotocraftApp>) -> bool {
     h.ctx.data(|d| d.get_temp::<(egui::Id, Rect)>(egui::Id::unique("tool-flyout"))).is_some()
 }
 
+/// Ensure hold and drag releases remain owned by the flyout and never also cycle.
 #[test]
 fn alt_hold_and_drag_keep_the_existing_flyout_gesture() {
     for drag in [false, true] {
@@ -163,6 +174,7 @@ fn alt_hold_and_drag_keep_the_existing_flyout_gesture() {
     }
 }
 
+/// Close a same-group or other-group flyout before its rows can consume the cycling release.
 #[test]
 fn alt_click_closes_an_open_flyout_and_cycles_only_once() {
     for other in [false, true] {
@@ -182,6 +194,7 @@ fn alt_click_closes_an_open_flyout_and_cycles_only_once() {
     }
 }
 
+/// Clear spring/stylus overrides, restore the chosen tool and preserve pixels, history and options.
 #[test]
 fn explicit_cycle_clears_temporary_tools_and_persists_without_document_changes() {
     for stylus in [false, true] {
@@ -222,6 +235,7 @@ fn explicit_cycle_clears_temporary_tools_and_persists_without_document_changes()
     }
 }
 
+/// Preserve every Pen starting tool until the documented exceptions have precise reference evidence.
 #[test]
 fn pen_group_is_preserved_pending_reference_evidence_for_the_exceptions() {
     // Adobe lists three exceptions without saying whether they are skipped or suppress the
@@ -241,6 +255,7 @@ fn pen_group_is_preserved_pending_reference_evidence_for_the_exceptions() {
     }
 }
 
+/// Keep the accessible button in place through cycling across the supported layout matrix.
 #[test]
 fn cycling_uses_accessible_buttons_in_both_layouts_themes_scales_and_directions() {
     for kind in theme::ThemeKind::ALL {
@@ -288,6 +303,7 @@ fn gpu_capture_toolbar_cycle() {
     }
 }
 
+/// Handle empty, singleton and stale helper inputs without unchecked indexing.
 #[test]
 fn next_tool_handles_empty_and_stale_groups_without_indexing() {
     assert_eq!(next_toolbar_tool(&[], Tool::Brush), None);
@@ -295,6 +311,7 @@ fn next_tool_handles_empty_and_stale_groups_without_indexing() {
     assert_eq!(next_toolbar_tool(&[Tool::Brush], Tool::Brush), Some(Tool::Brush));
 }
 
+/// Prevent rapid modifier-clicks from fitting the view or restoring actual-pixel zoom.
 #[test]
 fn rapid_alt_clicks_on_hand_and_a_singleton_do_not_run_double_click_view_actions() {
     let mut h = harness();
