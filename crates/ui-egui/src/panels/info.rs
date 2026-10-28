@@ -1,4 +1,4 @@
-use super::*;
+use super::{PhotocraftApp, RichText, Tokens, Value, empty, json, theme, widgets};
 
 /// The active document's pixel under the pointer, if the pointer is over the image.
 pub(crate) fn hover_pixel(app: &PhotocraftApp) -> Option<(i32, i32)> {
@@ -7,20 +7,20 @@ pub(crate) fn hover_pixel(app: &PhotocraftApp) -> Option<(i32, i32)> {
 }
 
 /// The colour the Info panel reads at document pixel `(x, y)`, straight RGBA 0..1: averaged over
-/// the Eyedropper's Sample Size, as in Photoshop (#1649), and cached per document, pixel and revision.
+/// the Eyedropper's Sample Size, as in Photoshop (#1649), cached per document activation, pixel and revision.
 pub(crate) fn pointer_sample(app: &mut PhotocraftApp, (x, y): (i32, i32)) -> Option<[f32; 4]> {
     let st = app.session.active()?;
-    let (doc_id, rev) = (st.doc.id, st.revision);
     let sample_size = app.ui.tool_options.eyedropper_size;
-    if let Some((key, v)) = app.info_sample
-        && key == (doc_id, x, y, rev, sample_size)
+    let key = (st.doc.id, app.session.active_generation(), x, y, st.revision, sample_size);
+    if let Some((cached, v)) = app.info_sample
+        && cached == key
     {
         return Some(v);
     }
     let params = json!({"x": f64::from(x) + 0.5, "y": f64::from(y) + 0.5, "size": sample_size});
     let v: Vec<f32> = serde_json::from_value(app.session.execute("document.sampleColor", params).ok()?).ok()?;
     let v = [*v.first()?, *v.get(1)?, *v.get(2)?, *v.get(3)?];
-    app.info_sample = Some(((doc_id, x, y, rev, sample_size), v));
+    app.info_sample = Some((key, v));
     Some(v)
 }
 

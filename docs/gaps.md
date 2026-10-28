@@ -274,7 +274,7 @@ what an agent can't finish alone.
 
 ### G9. Panels, preferences and workspace
 
-**Info panel composite opacity (2026-10-26, #8525):** optional, hidden by default, enabled with Show composite opacity in the panel menu and remembered between launches. It reads the sampled visible-layer composite, not the selected layer's opacity setting: a selected layer at 50% over an opaque background reads 100%. RGB/Gray/CMYK/Lab at 8/16/32-bit, sample-size averaging, document switching, empty/off-canvas states, menu/persistence and narrow/wide layouts are covered by `panels::info::opacity_tests`, `panels::info_panel_options::tests`, control and docking tests. No readiness estimate changed.
+**Info panel composite opacity (2026-10-26, #8525):** optional, hidden by default, enabled with Show composite opacity in the panel menu and remembered between launches. It reads the sampled visible-layer composite, not the selected layer's opacity setting: a selected layer at 50% over an opaque background reads 100%. RGB/Gray/CMYK/Lab at 8/16/32-bit, sample-size averaging, document switching/reopening, empty/off-canvas states, atomic automation updates, menu/persistence and narrow/wide layouts are covered by `panels::info::opacity_tests`, `panels::info_panel_options::tests`, control and docking tests. No readiness estimate changed.
 - **Progress (2026-10-21):** adjustment clipping is reachable above the Properties editor in a compact dock (#5231), with all-theme layout coverage and 8/16/32-bit scope and undo/redo tests. The normal adjustment-layer scope and remaining estimate stay unchanged.
 - **Progress (2026-10-16, #3222):** UI scale presets are complete: 75–125% in 5% steps,
   then 150–300%, remembered through preferences (UI-217-9).

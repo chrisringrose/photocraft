@@ -19,6 +19,7 @@ pub mod dialogs;
 pub mod dock;
 pub mod file_dialog;
 pub mod file_open;
+pub mod frame_stages;
 pub mod gpu_status;
 pub mod i18n;
 mod icon_data;
@@ -34,6 +35,7 @@ pub mod panels;
 pub use panels::info_panel_options;
 pub mod preset_files_ui;
 pub mod proxy;
+pub mod render_path;
 pub mod screenshot;
 pub mod state;
 pub mod texel_guard;
@@ -129,8 +131,6 @@ pub use dialogs::file_ui;
 pub use dialogs::fill_ui;
 pub use dialogs::filter_dialog;
 use dialogs::filter_preview_ui;
-#[cfg(not(target_arch = "wasm32"))]
-use dialogs::filter_preview_worker;
 pub use dialogs::gallery_ui;
 pub use dialogs::guide_layout_ui;
 pub use dialogs::history_options_ui;
@@ -305,8 +305,9 @@ use widgets::tab_strip;
 pub use widgets::text_field_menu;
 pub use widgets::tone;
 
-/// The Info panel's cached sample: document, pixel x, y, revision and Eyedropper Sample Size.
-type InfoSampleKey = (DocId, i32, i32, u64, u32);
+/// Cached Info sample: document ID, active generation, pixel x/y, revision and Sample Size.
+/// The generation distinguishes reopened native documents that retain their saved ID and revision.
+type InfoSampleKey = (DocId, u64, i32, i32, u64, u32);
 
 pub struct PhotocraftApp {
     pub session: Session,
@@ -474,7 +475,7 @@ pub struct PhotocraftApp {
     pub(crate) filter_preview: Option<filter_dialog::FilterPreview>,
     pub(crate) smart_filter_targets: smart_filter_dialog::Targets,
     #[cfg(not(target_arch = "wasm32"))]
-    filter_preview_worker: filter_preview_worker::Worker,
+    filter_preview_worker: crate::dialogs::filter_preview_worker::Worker,
     /// Full CPU canvas redraws running in the background, by document (#4024).
     pub(crate) redraws: std::collections::HashMap<photocraft_doc::DocId, background_redraw::Redraw>,
     /// The last finished background redraws, for going back to a state drawn a moment ago (#6528).
@@ -506,6 +507,10 @@ pub struct PhotocraftApp {
     /// makes shortcut- and dialog-triggered commands pass the same policy as
     /// direct control calls.
     pub(crate) automation_input: bool,
+    /// How many `run_command` calls are on the stack. Only the outermost one writes the frame's
+    /// command stage: a nested run (`file.save` → `layer.smartObjects.saveContents`,
+    /// `actions.play` → its steps) is already inside the outer call's time.
+    run_depth: u32,
     /// Action playbacks paused at a step dialog, by the token in that dialog's fields
     /// ([`actions::RESUME`]): what to play next and the automation gate it paused under.
     pub(crate) paused_playbacks: actions::PausedPlaybacks,
@@ -618,6 +623,10 @@ pub struct PhotocraftApp {
     pub perf: gpu_canvas::Perf,
     /// Per-frame stroke timings for latency reports (`PHOTOCRAFT_STROKE_TRACE`, see `stroke_trace`).
     pub stroke_trace: stroke_trace::StrokeTrace,
+    /// Why each document's view is drawn on the CPU, and the history of changes (`render_path`).
+    pub render_path: render_path::RenderPath,
+    /// The last slow frames and their stages (`perf.slowFrames`, see `frame_stages`).
+    pub slow_frames: frame_stages::SlowFrames,
     /// Preferences, autosave and snapping runtime state (see `prefs_ui`, `snap_ui`).
     pub(crate) prefs_rt: prefs_ui::Runtime,
     pub(crate) updates_rt: updates_ui::Runtime,

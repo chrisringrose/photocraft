@@ -1,7 +1,10 @@
-use super::*;
+use super::info_panel;
+use crate::{PhotocraftApp, theme};
+use egui::vec2;
 use egui_kittest::{Harness, kittest::Queryable};
-
 use photocraft_color::{ColorMode, SampleType};
+use photocraft_doc::Layer;
+use serde_json::json;
 
 /// A synthetic document with transparent, half-covered and opaque pixels; the readout is opted in.
 fn opacity_app(mode: ColorMode, depth: SampleType) -> PhotocraftApp {
@@ -115,6 +118,29 @@ fn info_panel_opacity_cache_follows_the_active_document() {
     assert!(h.state_mut().session.set_active(0));
     h.run_steps(2);
     assert_opacity(&h, "50%");
+}
+
+/// Closing and reopening a saved document can reuse its persisted ID and initial revision.
+#[test]
+fn info_panel_opacity_cache_follows_reopened_document_instances() {
+    let app = opacity_app(ColorMode::Rgb, SampleType::U8);
+    let mut h = Harness::builder().with_size(vec2(260.0, 240.0)).build_ui_state(|ui, app| info_panel(app, ui), app);
+    h.run_steps(2);
+    assert_opacity(&h, "50%");
+    let st = h.state().session.active().unwrap();
+    let (id, revision) = (st.doc.id, st.revision);
+    let mut reopened = st.doc.as_ref().clone();
+    let surface = reopened.layers.first_mut().unwrap().surface_mut().unwrap();
+    let format = surface.format();
+    surface.write_pixel(1, 0, &photocraft_raster::from_rgba(&format, [1.0, 1.0, 1.0, 1.0]));
+    h.state_mut().session.close(0).unwrap();
+    h.state_mut().session.add_document(reopened, None);
+    let st = h.state().session.active().unwrap();
+    assert_eq!(st.doc.id, id, "reopening retains the saved document ID");
+    assert_eq!(st.revision, revision, "the new session starts at the same revision");
+    // No frame was rendered between closing and reopening: the stale sample must not survive.
+    h.run_steps(2);
+    assert_opacity(&h, "100%");
 }
 
 /// Both visibility states fit the narrow and wide panel in every theme; native renders are opt-in.
