@@ -449,3 +449,23 @@ fn list_reports_every_readout_and_the_channels() {
     assert_eq!(p[1]["channels"][0]["percent"], 0);
     assert_eq!((p[0]["totalSpotInk"].as_i64(), p[1]["totalSpotInk"].as_i64()), (Some(100), Some(0)), "Total Spot Ink per point");
 }
+
+/// Lab goes through the document's profile: the same red reads more saturated (a larger a*) in
+/// an Adobe RGB document than in an sRGB one, and the sRGB document matches the sRGB maths.
+#[test]
+fn lab_readout_follows_the_document_profile() {
+    let mut s = session();
+    s.execute("edit.assignProfile", json!({"profile": "srgb"})).unwrap();
+    let srgb = readouts(&s.active().unwrap().doc, [1.0, 0.0, 0.0, 1.0]).lab;
+    let maths = photocraft_color::convert::srgb_to_lab([1.0, 0.0, 0.0]).map(|v| v.round() as i32);
+    assert!(
+        (srgb[0] - maths[0]).abs() <= 1 && (srgb[1] - maths[1]).abs() <= 1 && (srgb[2] - maths[2]).abs() <= 1,
+        "sRGB document ≈ sRGB maths: {srgb:?} vs {maths:?}"
+    );
+    s.execute("edit.assignProfile", json!({"profile": "adobe-rgb-compat"})).unwrap();
+    let adobe = readouts(&s.active().unwrap().doc, [1.0, 0.0, 0.0, 1.0]).lab;
+    assert!(adobe[1] > srgb[1] + 5, "Adobe RGB red is more saturated: a* {} vs sRGB {}", adobe[1], srgb[1]);
+    assert_eq!(readouts(&s.active().unwrap().doc, [1.0, 1.0, 1.0, 1.0]).lab, [100, 0, 0], "white is white in any RGB profile");
+    s.execute("view.colorSamplers.add", json!({"x": 1, "y": 1})).unwrap();
+    assert_eq!(points(&mut s)[0]["lab"], json!([100, 0, 0]), "points read the same way");
+}

@@ -83,10 +83,26 @@ pub fn readouts(doc: &Document, rgba: [f32; 4]) -> Readouts {
         gray: pct(1.0 - photocraft_color::convert::rgb_to_gray(rgb)),
         hsb: [hue, pct(s), pct(b)],
         hsl: [hue, pct(sl), pct(l)],
-        lab: photocraft_color::convert::srgb_to_lab(rgb).map(|v| v.round() as i32),
+        lab: lab(doc, rgb).map(|v| v.round() as i32),
         web: format!("{:02x}{:02x}{:02x}", q(rgb[0]), q(rgb[1]), q(rgb[2])),
         total_ink: cmyk.iter().sum(),
         opacity: pct(unit(rgba[3])),
+    }
+}
+
+/// CIE Lab (D50) of composite `rgb` through the document's profile (the compositor's output
+/// profile, so an Adobe RGB document's red is not read as sRGB red), the same transform Color
+/// Range uses; the sRGB maths only when no transform can be built.
+fn lab(doc: &Document, rgb: [f32; 3]) -> [f32; 3] {
+    let src = crate::color_cmds::composite_profile(doc);
+    match photocraft_cms::cached(&src, photocraft_cms::Builtin::LabD50.profile(), photocraft_cms::TransformOptions::default()) {
+        Ok(t) => {
+            let mut out = [0.0f32; 3];
+            t.eval(&rgb, &mut out);
+            // The Lab profile's normalised encoding (ICC v4) → L 0–100, a and b −128–127.
+            [out[0] * 100.0, out[1] * 255.0 - 128.0, out[2] * 255.0 - 128.0]
+        }
+        Err(_) => photocraft_color::convert::srgb_to_lab(rgb),
     }
 }
 
