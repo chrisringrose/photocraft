@@ -11,30 +11,30 @@ pub(crate) fn hover_pixel(app: &PhotocraftApp) -> Option<(i32, i32)> {
 }
 
 /// The colour the Info panel reads at document pixel `(x, y)`, straight RGBA 0..1: averaged over
-/// the Eyedropper's Sample Size, as in Photoshop (#1649), and cached per pixel and revision.
+/// the Eyedropper's Sample Size, as in Photoshop (#1649), cached per document activation, pixel and revision.
 pub(crate) fn pointer_sample(app: &mut PhotocraftApp, (x, y): (i32, i32)) -> Option<[f32; 4]> {
-    let rev = app.session.active()?.revision;
+    let st = app.session.active()?;
     let sample_size = app.ui.tool_options.eyedropper_size;
-    if let Some(((cx, cy, cr, cs), v)) = app.info_sample
-        && (cx, cy, cr, cs) == (x, y, rev, sample_size)
+    let key = (st.doc.id, app.session.active_generation(), x, y, st.revision, sample_size);
+    if let Some((cached, v)) = app.info_sample
+        && cached == key
     {
         return Some(v);
     }
     let params = json!({"x": f64::from(x) + 0.5, "y": f64::from(y) + 0.5, "size": sample_size});
     let v: Vec<f32> = serde_json::from_value(app.session.execute("document.sampleColor", params).ok()?).ok()?;
     let v = [*v.first()?, *v.get(1)?, *v.get(2)?, *v.get(3)?];
-    app.info_sample = Some(((x, y, rev, sample_size), v));
+    app.info_sample = Some((key, v));
     Some(v)
 }
 
-/// The Info panel's extra-channel readings under the pointer and the (document, pixel, revision)
-/// they were read for.
-pub(crate) type PointerChannels = ((photocraft_doc::DocId, i32, i32, u64), std::sync::Arc<Vec<ChannelReadout>>);
+/// Extra-channel readings under the pointer, keyed by document ID, activation, pixel and revision.
+pub(crate) type PointerChannels = ((photocraft_doc::DocId, u64, i32, i32, u64), std::sync::Arc<Vec<ChannelReadout>>);
 
 /// Every alpha and spot channel's reading at document pixel `(x, y)` (one pixel, as Photoshop
-/// reads a channel), cached per document, pixel and revision.
+/// reads a channel), cached per document activation, pixel and revision.
 pub(crate) fn pointer_channels(app: &mut PhotocraftApp, (x, y): (i32, i32)) -> std::sync::Arc<Vec<ChannelReadout>> {
-    let Some(key) = app.session.active().map(|s| (s.doc.id, x, y, s.revision)) else { return std::sync::Arc::default() };
+    let Some(key) = app.session.active().map(|s| (s.doc.id, app.session.active_generation(), x, y, s.revision)) else { return std::sync::Arc::default() };
     if let Some((k, v)) = &app.info_channels
         && *k == key
     {
@@ -250,14 +250,18 @@ pub(super) fn info_panel(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
 #[cfg(test)]
 mod readout_tests;
 
-/// The Info panel's Color Sampler readouts and the (document, revision) they were composited for.
-pub(crate) type SamplerReadouts = ((photocraft_doc::DocId, u64), std::sync::Arc<Vec<Value>>);
+#[cfg(test)]
+mod cache_tests;
+
+/// Color Sampler readouts and the (document ID, activation, revision) they were composited for.
+pub(crate) type SamplerReadouts = ((photocraft_doc::DocId, u64, u64), std::sync::Arc<Vec<Value>>);
 
 /// The Color Sampler readouts of the active document, composited once per revision (#4528):
 /// adding, moving or deleting a sampler and every pixel edit bump the revision, so between them
 /// the Info panel reuses them instead of compositing each point through the stack every frame.
+/// Activation also matters: reopened documents can reuse an ID and reach the same revision.
 pub(crate) fn sampler_readouts(app: &mut PhotocraftApp) -> std::sync::Arc<Vec<Value>> {
-    let Some(key) = app.session.active().map(|s| (s.doc.id, s.revision)) else { return std::sync::Arc::default() };
+    let Some(key) = app.session.active().map(|s| (s.doc.id, app.session.active_generation(), s.revision)) else { return std::sync::Arc::default() };
     if let Some((k, v)) = &app.info_samplers
         && *k == key
     {
