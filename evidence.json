@@ -1,0 +1,42 @@
+{
+  "tree": "9a2a63d12a6d78e7b942a6f8389c947c23312b15",
+  "native": "Linux aarch64; actual PhotoCraft desktop on Xvfb; wgpu software adapter; CPU canvas; pixelsPerPoint 1",
+  "fixture": "400x300 synthetic white Color Fill layer, opacity 0.5. info-50: transparency underneath. info-100: opaque white Color Fill underneath, same selected layer and opacity.",
+  "crops": {
+    "info-default.png": [
+      1080,
+      78,
+      1400,
+      390
+    ],
+    "info-50.png": [
+      1080,
+      78,
+      1400,
+      390
+    ],
+    "info-100.png": [
+      1080,
+      78,
+      1400,
+      390
+    ],
+    "info-options.png": [
+      480,
+      362,
+      920,
+      691
+    ],
+    "selected-layer-50.png": [
+      1080,
+      526,
+      1400,
+      740
+    ]
+  },
+  "source_events": [
+    "refreshed-native/native-main-events.json",
+    "refreshed-native/native-events.json"
+  ],
+  "limitations": "Native macOS/Windows pointer acceptance not exercised. Original upstream Lab readouts cannot preserve out-of-gamut native Lab values."
+}
