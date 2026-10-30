@@ -138,7 +138,10 @@ cycle. A short modifier-click closes an open flyout and makes only the cycling c
 Keyboard activation remains ordinary selection. Hand/Zoom double-click view actions require
 two consecutive ordinary pointer clicks on the same slot; a modifier-click followed by an
 ordinary click cannot invoke them. A release elsewhere or a flyout-owned gesture breaks
-that pair, while genuine ordinary double-clicks retain their existing view actions.
+that pair. Eligible ordinary clicks use the toolkit's time and movement limits independently
+of its modifier-blind click count, so an ordinary pair immediately after Alt/Option-click
+still invokes the view action. A third rapid ordinary click does not repeat it. A release
+and subsequent press delivered in one frame retain their separate press-time modifiers.
 
 Reference boundary: Adobe's [CS6 manual](https://helpx.adobe.com/pdf/cs6/photoshop_reference.pdf),
 "Keys for selecting tools", documents the gesture with Add Anchor Point, Delete Anchor Point

@@ -91,6 +91,55 @@ pub(super) fn tool_flyout_release(row: Rect, pointer: Option<Pos2>, released: bo
     released && from_button && pointer.is_some_and(|p| row.contains(p))
 }
 
+/// Last eligible ordinary release, independent of egui's modifier-blind click count.
+#[derive(Clone, Copy)]
+struct ToolbarPlainClick {
+    slot: egui::Id,
+    pos: Pos2,
+    time: f64,
+    count: u8,
+}
+
+/// Classify a completed primary gesture before remembering a later press in the same frame.
+fn toolbar_primary_release(ui: &egui::Ui, id: egui::Id) -> Option<(Pos2, bool, Pos2)> {
+    let mut press = ui.data(|d| d.get_temp::<(Pos2, bool)>(id));
+    let mut release = None;
+    ui.input(|input| {
+        for event in &input.events {
+            match event {
+                egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers } => {
+                    if *pressed {
+                        press = Some((*pos, modifiers.alt));
+                    } else {
+                        release = press.take().map(|(origin, alt)| (origin, alt, *pos));
+                    }
+                }
+                egui::Event::PointerGone | egui::Event::WindowFocused(false) => press = None,
+                _ => {}
+            }
+        }
+    });
+    ui.data_mut(|d| {
+        if let Some(press) = press {
+            d.insert_temp(id, press);
+        } else {
+            d.remove::<(Pos2, bool)>(id);
+        }
+    });
+    release
+}
+
+/// Apply egui's time/distance limits to ordinary releases, retaining its triple-click behavior.
+fn toolbar_plain_double_click(ui: &egui::Ui, id: egui::Id, previous: Option<ToolbarPlainClick>, slot: egui::Id, pos: Pos2) -> bool {
+    let time = ui.input(|input| input.time);
+    let options = ui.ctx().options(|options| options.input_options);
+    let count = previous
+        .filter(|p| p.slot == slot && time - p.time < options.max_double_click_delay && p.pos.distance_sq(pos) < options.max_click_dist.powi(2))
+        .map_or(1, |p| p.count.saturating_add(1).min(3));
+    ui.data_mut(|d| d.insert_temp(id, ToolbarPlainClick { slot, pos, time, count }));
+    count == 2
+}
+
 /// Render toolbar tools, flyouts and color chips using the explicit tool-selection path.
 pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
@@ -132,19 +181,27 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
             ui.spacing_mut().item_spacing = vec2(2.0, 3.0);
             let flyout_id = egui::Id::unique("tool-flyout");
             let held_id = flyout_id.with("held");
-            let alt_id = flyout_id.with("alt-press");
+            let release = toolbar_primary_release(ui, flyout_id.with("primary-press"));
             let plain_click_id = flyout_id.with("plain-click");
-            let previous_plain_click = ui.data(|d| d.get_temp::<egui::Id>(plain_click_id));
-            if ui.input(|i| i.pointer.primary_released()) {
-                // egui counts clicks without checking modifiers. A release elsewhere or a
-                // modifier gesture must break the pair used by Hand/Zoom view actions.
-                ui.data_mut(|d| d.remove::<egui::Id>(plain_click_id));
+            let interrupted = ui.input(|i| {
+                i.events.iter().any(|event| {
+                    matches!(
+                        event,
+                        egui::Event::PointerGone
+                            | egui::Event::WindowFocused(false)
+                            | egui::Event::PointerButton { button: egui::PointerButton::Secondary | egui::PointerButton::Middle, .. }
+                    )
+                })
+            });
+            let previous_plain_click = (!interrupted).then(|| ui.data(|d| d.get_temp::<ToolbarPlainClick>(plain_click_id))).flatten();
+            if ui.input(|i| i.pointer.primary_released()) || interrupted {
+                // A release elsewhere, cancellation or flyout gesture breaks the ordinary pair.
+                ui.data_mut(|d| d.remove::<ToolbarPlainClick>(plain_click_id));
             }
-            if ui.input(|i| i.pointer.any_pressed()) {
-                ui.data_mut(|d| {
-                    d.remove::<egui::Id>(held_id);
-                    d.remove::<egui::Id>(alt_id);
-                });
+            let new_press = ui.input(|i| i.pointer.any_pressed());
+            let clear_held_after_release = ui.input(|i| i.pointer.primary_released());
+            if (new_press && !clear_held_after_release) || interrupted {
+                ui.data_mut(|d| d.remove::<egui::Id>(held_id));
             }
             // No tool tooltips over an open flyout, or while a button is held to open one (#4450):
             // Photoshop shows none there. (The flyout is our own Area, so egui's rule for popups
@@ -190,27 +247,17 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                     if slot.len() > 1 {
                                         paint_toolbar_flyout_indicator(ui, &t, &resp);
                                     }
-                                    // Latch the press event, not the release frame's modifiers. A hold or
-                                    // drag still belongs to the flyout, whose held marker suppresses clicks.
-                                    let alt_press = (resp.is_pointer_button_down_on() || resp.clicked())
-                                        && ui.input(|i| {
-                                            i.events.iter().any(|event| {
-                                                matches!(event,
-                                            egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers }
-                                                if modifiers.alt && resp.rect.contains(*pos))
-                                            })
-                                        });
-                                    if alt_press {
-                                        ui.data_mut(|d| d.insert_temp(alt_id, key));
-                                    }
+                                    // The completed release keeps its press modifiers even if another
+                                    // press has already arrived. Held/drag releases belong to the flyout.
                                     let click = resp.clicked() && ui.data(|d| d.get_temp::<egui::Id>(held_id)) != Some(key);
-                                    let alt_click =
-                                        click && ui.input(|i| i.pointer.primary_released()) && ui.data(|d| d.get_temp::<egui::Id>(alt_id)) == Some(key);
-                                    let plain_click = click && !alt_click && ui.input(|i| i.pointer.primary_released());
-                                    let plain_double_click = plain_click && previous_plain_click == Some(key) && resp.double_clicked();
-                                    if plain_click {
-                                        ui.data_mut(|d| d.insert_temp(plain_click_id, key));
+                                    let pointer_click = click && resp.clicked_by(egui::PointerButton::Primary);
+                                    if click && !pointer_click {
+                                        ui.data_mut(|d| d.remove::<ToolbarPlainClick>(plain_click_id));
                                     }
+                                    let alt_click = pointer_click && release.is_some_and(|(origin, alt, _)| alt && resp.rect.contains(origin));
+                                    let plain_double_click = pointer_click
+                                        && !alt_click
+                                        && release.is_some_and(|(_, _, pos)| toolbar_plain_double_click(ui, plain_click_id, previous_plain_click, key, pos));
                                     if click {
                                         let chosen = if alt_click { next_toolbar_tool(slot, tool).unwrap_or(tool) } else { tool };
                                         crate::tool_memory::select(app, chosen);
@@ -219,9 +266,6 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                             // choice and cannot also select a stale flyout row.
                                             ui.data_mut(|d| d.remove::<(egui::Id, Rect)>(flyout_id));
                                         }
-                                    }
-                                    if ui.input(|i| i.pointer.primary_released()) && ui.data(|d| d.get_temp::<egui::Id>(alt_id)) == Some(key) {
-                                        ui.data_mut(|d| d.remove::<egui::Id>(alt_id));
                                     }
                                     // Double-clicking the Hand tool fits the image on screen (Photoshop).
                                     if plain_double_click && tool == Tool::Hand {
@@ -325,8 +369,8 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                                                         }
                                                         let drag_release = tool_flyout_release(
                                                             r,
-                                                            ui.input(|i| i.pointer.hover_pos()),
-                                                            ui.input(|i| i.pointer.primary_released()),
+                                                            release.map(|(_, _, pos)| pos),
+                                                            release.is_some(),
                                                             ui.data(|d| d.get_temp::<egui::Id>(held_id)) == Some(key),
                                                         );
                                                         if ir.clicked() || drag_release {
@@ -356,6 +400,9 @@ pub fn toolbar(app: &mut PhotocraftApp, ui: &mut egui::Ui) {
                     }
                     reveal_focused_control(ui);
                 });
+            if clear_held_after_release {
+                ui.data_mut(|d| d.remove::<egui::Id>(held_id));
+            }
             ui.add_space(if t.pro { 8.0 } else { 14.0 });
             // Centred in the tool column as it is before the tools scroll: a scroll bar widens the
             // UI it is in, and the chips moved over by its width (#7316).

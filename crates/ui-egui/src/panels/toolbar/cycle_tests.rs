@@ -1,5 +1,6 @@
 //! Pointer regressions for the main toolbar, separate from shortcut-key groups.
 use super::*;
+use crate::{panels::options_bar::options_bar, theme};
 use egui_kittest::{Harness, kittest::Queryable};
 
 /// Build the default Studio fixture with accessibility checks enabled.
@@ -406,6 +407,159 @@ fn ordinary_double_clicks_still_run_view_actions_after_modifier_clicks() {
             assert!(h.state().ui.views[0].fit_pending, "ordinary Hand double-click still fits the view");
         } else {
             assert_eq!(h.state().ui.views[0].zoom, 1.0, "ordinary Zoom double-click still restores actual pixels");
+        }
+    }
+}
+
+/// Rapid ordinary clicks after Alt must form their own pair, independently of raw click counts.
+#[test]
+fn rapid_plain_pair_after_alt_runs_hand_and_zoom_view_actions() {
+    for tool in [Tool::Hand, Tool::Zoom] {
+        let mut h = harness();
+        h.state_mut().run("file.new", json!({"width": 8, "height": 8})).unwrap();
+        h.state_mut().ui.views[0].fit_pending = false;
+        h.state_mut().ui.views[0].zoom = 0.5;
+        crate::tool_memory::select(h.state_mut(), if tool == Tool::Hand { Tool::RotateView } else { tool });
+        h.run_steps(1);
+        let at = h.get_by_label(if tool == Tool::Hand { "Rotate View Tool  (R)" } else { "Zoom Tool  (Z)" }).rect().center();
+        for (index, mods) in [egui::Modifiers::ALT, egui::Modifiers::NONE, egui::Modifiers::NONE].into_iter().enumerate() {
+            pointer(&mut h, at, true, mods);
+            pointer(&mut h, at, false, mods);
+            assert_eq!(h.state().ui.tool, tool);
+            assert_eq!(h.state().ui.views[0].fit_pending, index == 2 && tool == Tool::Hand);
+            assert_eq!(h.state().ui.views[0].zoom, if index == 2 && tool == Tool::Zoom { 1.0 } else { 0.5 });
+            h.run_steps(5);
+        }
+    }
+}
+
+/// A new press after a release in one frame must not rewrite the completed gesture's Alt state.
+#[test]
+fn release_then_next_press_preserves_both_gestures_modifiers() {
+    for first_alt in [true, false] {
+        let mut h = harness();
+        let at = h.get_by_label("Brush Tool  (B)").rect().center();
+        let first = if first_alt { egui::Modifiers::ALT } else { egui::Modifiers::NONE };
+        let second = if first_alt { egui::Modifiers::NONE } else { egui::Modifiers::ALT };
+        pointer(&mut h, at, true, first);
+        h.input_mut().events.extend([
+            egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: first },
+            egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: second },
+        ]);
+        h.run_steps(1);
+        assert_eq!(h.state().ui.tool, if first_alt { Tool::Pencil } else { Tool::Brush }, "completed first gesture");
+        pointer(&mut h, at, false, second);
+        assert_eq!(h.state().ui.tool, Tool::Pencil, "second gesture retains its own press modifiers");
+    }
+}
+
+/// Preserve single/double/triple-click semantics and reset the sequence after time or movement.
+#[test]
+fn ordinary_view_pairs_respect_timing_distance_and_triple_clicks() {
+    for distance in [false, true] {
+        let mut h = harness();
+        h.state_mut().run("file.new", json!({"width": 8, "height": 8})).unwrap();
+        h.state_mut().ui.views[0].fit_pending = false;
+        h.state_mut().ui.views[0].zoom = 0.5;
+        let at = h.get_by_label("Zoom Tool  (Z)").rect().center();
+        for index in 0..4 {
+            pointer(&mut h, at, true, egui::Modifiers::NONE);
+            pointer(&mut h, at, false, egui::Modifiers::NONE);
+            assert_eq!(h.state().ui.views[0].zoom, if index == 1 { 1.0 } else { 0.5 }, "ordinary click {index}");
+            h.state_mut().ui.views[0].zoom = 0.5;
+        }
+        let next = if distance {
+            at + vec2(8.0, 0.0)
+        } else {
+            h.run_steps(20);
+            at
+        };
+        pointer(&mut h, next, true, egui::Modifiers::NONE);
+        pointer(&mut h, next, false, egui::Modifiers::NONE);
+        assert_eq!(h.state().ui.views[0].zoom, 0.5, "a delayed/displaced release starts a fresh pair");
+        pointer(&mut h, next, true, egui::Modifiers::NONE);
+        pointer(&mut h, next, false, egui::Modifiers::NONE);
+        assert_eq!(h.state().ui.views[0].zoom, 1.0);
+    }
+}
+
+/// An intervening release outside the toolbar must break an ordinary view-action pair.
+#[test]
+fn release_outside_breaks_the_ordinary_view_pair() {
+    let mut h = harness();
+    h.state_mut().run("file.new", json!({"width": 8, "height": 8})).unwrap();
+    h.state_mut().ui.views[0].fit_pending = false;
+    h.state_mut().ui.views[0].zoom = 0.5;
+    let at = h.get_by_label("Zoom Tool  (Z)").rect().center();
+    pointer(&mut h, at, true, egui::Modifiers::NONE);
+    pointer(&mut h, at, false, egui::Modifiers::NONE);
+    pointer(&mut h, at, true, egui::Modifiers::NONE);
+    pointer(&mut h, at + vec2(100.0, 0.0), false, egui::Modifiers::NONE);
+    pointer(&mut h, at, true, egui::Modifiers::NONE);
+    pointer(&mut h, at, false, egui::Modifiers::NONE);
+    assert_eq!(h.state().ui.views[0].zoom, 0.5);
+    assert_eq!(h.state().ui.tool, Tool::Zoom);
+}
+
+/// A flyout-owned release cannot become a cycle when the next press shares its frame.
+#[test]
+fn held_release_then_next_press_keeps_flyout_ownership() {
+    let mut h = harness();
+    let at = h.get_by_label("Brush Tool  (B)").rect().center();
+    pointer(&mut h, at, true, egui::Modifiers::ALT);
+    h.run_steps(24);
+    assert!(flyout_open(&h));
+    h.input_mut().events.extend([
+        egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::ALT },
+        egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::ALT },
+    ]);
+    h.run_steps(1);
+    assert_eq!(h.state().ui.tool, Tool::Brush);
+    assert!(flyout_open(&h));
+    pointer(&mut h, at, false, egui::Modifiers::NONE);
+    assert_eq!(h.state().ui.tool, Tool::Pencil);
+    assert!(!flyout_open(&h));
+}
+
+/// A held flyout uses the release position even when a later press changes the frame's pointer.
+#[test]
+fn flyout_release_uses_its_own_position_before_a_later_press() {
+    for next_press in [false, true] {
+        let mut h = harness();
+        let at = h.get_by_label("Brush Tool  (B)").rect().center();
+        pointer(&mut h, at, true, egui::Modifiers::ALT);
+        h.run_steps(24);
+        let (key, _) = h.ctx.data(|d| d.get_temp::<(egui::Id, Rect)>(egui::Id::unique("tool-flyout"))).unwrap();
+        let area = h.ctx.memory(|m| m.area_rect(key.with("flyout"))).unwrap();
+        let margin = egui::Frame::popup(&h.ctx.global_style()).total_margin();
+        let gap = (area.height() - margin.top - margin.bottom - 4.0 * 26.0) / 3.0;
+        assert!(gap >= 0.0);
+        let pencil = pos2(area.center().x, area.top() + margin.top + 26.0 + gap + 13.0);
+        let replacement = pencil + vec2(0.0, 2.0 * (26.0 + gap));
+        assert!(area.contains(pencil) && area.contains(replacement));
+        h.event(egui::Event::PointerMoved(pencil));
+        h.run_steps(1);
+        // Keep all transitions in the raw input queue so their order is preserved.
+        h.input_mut().events.push(egui::Event::PointerButton {
+            pos: pencil,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        });
+        if next_press {
+            h.input_mut().events.extend([
+                egui::Event::PointerMoved(replacement),
+                egui::Event::PointerButton { pos: replacement, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE },
+            ]);
+        }
+        h.run_steps(1);
+        assert_eq!(h.ctx.input(|i| i.pointer.primary_down()), next_press);
+        assert_eq!(h.ctx.input(|i| i.pointer.hover_pos()), Some(if next_press { replacement } else { pencil }));
+        assert_eq!(h.state().ui.tool, Tool::Pencil, "release chooses Pencil; later press={next_press}");
+        assert!(!flyout_open(&h));
+        if next_press {
+            pointer(&mut h, replacement, false, egui::Modifiers::NONE);
+            assert_eq!(h.state().ui.tool, Tool::Pencil);
         }
     }
 }
