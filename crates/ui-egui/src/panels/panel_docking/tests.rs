@@ -892,9 +892,9 @@ fn the_native_dock_width_sizes_the_default_column() {
     assert!(h.ctx.data_mut(|data| data.get_persisted::<egui::PanelState>(key)).is_none(), "taken once");
 }
 
-/// The Info menu exposes the same opt-in readout when docked and floated, including an empty session.
+/// The Info menu exposes the same Panel Options dialog when docked and floated, including an empty session.
 #[test]
-fn info_panel_menu_toggles_composite_opacity_docked_and_floating() {
+fn info_panel_menu_opens_readout_options_docked_and_floating() {
     for floating in [false, true] {
         let mut app = app();
         app.run("window.panel.activate", json!({"panel":"info"})).unwrap();
@@ -902,7 +902,7 @@ fn info_panel_menu_toggles_composite_opacity_docked_and_floating() {
             app.run("window.panel.float", json!({"panel":"info", "x":20, "y":40})).unwrap();
         }
         let mut h = harness(app, vec2(1280.0, 800.0));
-        for on in [true, false] {
+        for _ in 0..1 {
             let tab = tab_rect(&h, "info");
             let button = h
                 .query_all_by_label("Panel menu")
@@ -919,9 +919,9 @@ fn info_panel_menu_toggles_composite_opacity_docked_and_floating() {
                 h.run_steps(1);
             }
             h.run_steps(2);
-            h.get_by_label("Show composite opacity").click();
+            h.get_by_label("Panel Options…").click();
             h.run_steps(2);
-            assert_eq!(h.state().ui.info_panel.show_composite_opacity, on);
+            assert_eq!(h.state().ui.info_panel_dialog.as_ref(), Some(&h.state().ui.info_panel));
         }
     }
 }

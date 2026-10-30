@@ -17,7 +17,9 @@ pub use panel_state::{
 pub use tool::Tool;
 pub use tool_options::{SampleAllLayers, ToolOptions};
 use tool_options::{default_brush_tool, default_layer_filter_mode, yes};
-pub use transform::{BoxResize, CamTransform, ContentAwareOptions, Extras, MadeLayer, TextEdit, TransformMode, TransformSession, TypeTransform};
+pub use transform::{
+    BoxResize, CamTransform, ContentAwareOptions, Extras, MadeLayer, TextEdit, TransformMode, TransformSession, TypeInsertionStyle, TypeTransform,
+};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Panels {
@@ -215,6 +217,9 @@ pub struct UiState {
     /// Inline type editing session, if any.
     #[serde(default)]
     pub text_edit: Option<TextEdit>,
+    /// Font for subsequent typing at this caret, separate from existing character runs.
+    #[serde(default)]
+    pub type_insertion_style: Option<TypeInsertionStyle>,
     /// Clock time in seconds when type cursor blink was last reset (e.g. on keypress/caret move).
     #[serde(skip)]
     pub caret_blink_time: f64,
@@ -408,9 +413,13 @@ pub struct UiState {
     /// Which chip the Color panel edits, and how it shows the colour.
     #[serde(default)]
     pub color_panel: ColorPanelState,
-    /// Optional Info panel readouts, independent of the selected layer.
+    /// Info panel options: which readouts it shows.
     #[serde(default)]
     pub info_panel: crate::info_panel_options::InfoPanelState,
+    /// The Info panel's Panel Options dialog while open (the options being edited); never
+    /// restored with a workspace.
+    #[serde(skip)]
+    pub info_panel_dialog: Option<crate::info_panel_options::InfoPanelState>,
     /// Histogram panel options: view, channel, statistics, colours, source.
     #[serde(default)]
     pub histogram_panel: crate::histogram_panel::HistogramPanelState,
@@ -497,6 +506,7 @@ impl Default for UiState {
             recent_files: Vec::new(),
             recent_fonts: Vec::new(),
             text_edit: None,
+            type_insertion_style: None,
             caret_blink_time: 0.0,
             text_edit_return_tool: None,
             type_transform: None,
@@ -566,6 +576,7 @@ impl Default for UiState {
             docking_reveal: None,
             color_panel: Default::default(),
             info_panel: Default::default(),
+            info_panel_dialog: None,
             brush_section: 0,
             brush_tab: 0,
             brushes_panel: Default::default(),

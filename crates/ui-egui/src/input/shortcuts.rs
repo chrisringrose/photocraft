@@ -494,6 +494,11 @@ fn preflight_keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
     if app.camera_raw.is_some() {
         return false;
     }
+    // Info Panel Options owns its keyboard, including Escape; document shortcuts must not
+    // change the canvas or consume the dialog's cancellation key underneath the modal.
+    if app.ui.info_panel_dialog.is_some() {
+        return false;
+    }
     // A foreground save (Save in Background off, #6207) blocks the app until the file is written;
     // only Esc reaches it, to cancel while it still encodes (see `jobs_ui::tick`).
     if crate::jobs_ui::foreground_save(app).is_some() {
@@ -504,6 +509,9 @@ fn preflight_keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
     // pick an option rather than a tool (#1481). A command shortcut (⌘D, F7…) takes the keyboard
     // off the bar first and runs, as with a native menu bar (#6573).
     crate::menu_keys::leave_for_shortcut(ctx);
+    if app.ui.dialogs.is_empty() && app.discard.is_none() && crate::type_tool::commit_shortcut(app, ctx) {
+        return false;
+    }
     if crate::menu_nav::is_open(ctx) || crate::menu_keys::is_focused(ctx) || crate::widgets::dropdown_list_open(ctx) {
         return false;
     }
@@ -552,6 +560,10 @@ fn preflight_keys(app: &mut PhotocraftApp, ctx: &egui::Context) -> bool {
     if app.distort.caf.is_some() && !ctx.text_edit_focused() {
         crate::caf_ui::keys(app, ctx);
     }
+    // And Select and Mask's tools, views and brush size.
+    if app.distort.select_mask.is_some() && !ctx.text_edit_focused() {
+        crate::select_mask_ui::keys(app, ctx);
+    }
     true
 }
 
@@ -559,7 +571,7 @@ fn handle_modal_canvas_keys(app: &mut PhotocraftApp, ctx: &egui::Context, focus:
     use crate::shortcut_dispatch::{Focus, dispatch_pressed};
     // Dialogs (and Liquify's panel while one of its controls has focus) keep canvas zoom; a
     // focused text field keeps its keys.
-    let liquify_focus = (app.distort.liquify.is_some() || app.distort.caf.is_some()) && focus != Focus::None;
+    let liquify_focus = (app.distort.liquify.is_some() || app.distort.caf.is_some() || app.distort.select_mask.is_some()) && focus != Focus::None;
     if liquify_focus || !app.ui.dialogs.is_empty() || app.discard.is_some() {
         if focus != Focus::Text {
             nav_keys(app, ctx);

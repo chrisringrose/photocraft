@@ -484,10 +484,9 @@ fn crop_fill_param(p: &Value) -> std::result::Result<Option<bool>, String> {
     }
 }
 
-// -- panels: Histogram, Info, masks targets, docking, Color panel --
+// -- panels: Histogram, masks targets, docking, Color panel --
 
 struct PanelSet {
-    info_panel: Option<crate::info_panel_options::InfoPanelState>,
     histogram_panel: Option<crate::histogram_panel::HistogramPanelState>,
     histogram_range: Option<Option<[u8; 2]>>,
     histogram_refresh: Option<bool>,
@@ -500,13 +499,13 @@ struct PanelSet {
     dock_tabs: Option<crate::state::DockTabs>,
     dock: Option<crate::dock::DockLayout>,
     color_panel: Option<crate::state::ColorPanelState>,
+    info_panel: Option<crate::info_panel_options::InfoPanelState>,
     dock_width: Option<f64>,
 }
 
 impl PanelSet {
     fn parse(app: &PhotocraftApp, p: &Value) -> std::result::Result<Self, String> {
         Ok(Self {
-            info_panel: merged_object(&app.ui.info_panel, p.get("infoPanel"), "infoPanel")?,
             // The Histogram panel: its options, the dragged tonal range ([from, to] levels or
             // null) and Uncached Refresh.
             histogram_panel: merged_object(&app.ui.histogram_panel, p.get("histogramPanel"), "histogramPanel")?,
@@ -522,15 +521,14 @@ impl PanelSet {
             dock: whole_object(&app.ui.dock, p.get("dock"), "dock")?,
             // Which chip the Color panel edits.
             color_panel: merged_object(&app.ui.color_panel, p.get("colorPanel"), "colorPanel")?,
+            // The Info panel's readouts, kept with the preferences.
+            info_panel: merged_object(&app.ui.info_panel, p.get("infoPanel"), "infoPanel")?,
             dock_width: f32_field(p, "dockWidth")?,
         })
     }
 
     /// Everything that precedes the theme.
     fn apply_options(&mut self, app: &mut PhotocraftApp) {
-        if let Some(options) = self.info_panel.take() {
-            crate::info_panel_options::set_options(app, options);
-        }
         self.apply_histogram(app);
         if let Some(v) = self.panels.take() {
             app.ui.panels = v;
@@ -593,6 +591,9 @@ impl PanelSet {
     fn apply_color_and_width(&mut self, app: &mut PhotocraftApp, ctx: &egui::Context) {
         if let Some(v) = self.color_panel.take() {
             app.ui.color_panel = v;
+        }
+        if let Some(v) = self.info_panel.take() {
+            crate::info_panel_options::set_options(app, v);
         }
         // Right dock width in points (clamped to the dock's 250..=520 range), applied next frame.
         if let Some(w) = self.dock_width {

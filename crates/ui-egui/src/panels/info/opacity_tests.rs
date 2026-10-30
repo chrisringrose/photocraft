@@ -1,4 +1,5 @@
 use super::info_panel;
+use crate::info_panel_options::Readout;
 use crate::{PhotocraftApp, theme};
 use egui::vec2;
 use egui_kittest::{Harness, kittest::Queryable};
@@ -20,11 +21,11 @@ fn opacity_app(mode: ColorMode, depth: SampleType) -> PhotocraftApp {
     session.add_document(doc, None);
     let mut app = PhotocraftApp::new(session, crate::Services::default());
     app.hover_doc = Some([1.5, 0.5]);
-    app.ui.info_panel.show_composite_opacity = true;
+    app.ui.info_panel.readouts = vec![Readout::ActualColor, Readout::Cmyk, Readout::Opacity];
     app
 }
 
-/// Check the value beside the explicit composite label, rather than matching a CMYK percentage.
+/// Check the value beside the selected opacity label, rather than matching a CMYK percentage.
 fn assert_opacity(h: &Harness<'_, PhotocraftApp>, value: &str) {
     let label = h.get_by_label("Composite opacity:").rect();
     assert!(
@@ -95,7 +96,7 @@ fn info_panel_opacity_uses_sample_size_and_clears_outside_the_canvas() {
 #[test]
 fn info_panel_without_a_document_has_no_opacity_readout() {
     let mut app = PhotocraftApp::new(photocraft_engine::Session::new(), crate::Services::default());
-    app.ui.info_panel.show_composite_opacity = true;
+    app.ui.info_panel.readouts = vec![Readout::ActualColor, Readout::Cmyk, Readout::Opacity];
     let h = Harness::builder().build_ui_state(|ui, app| info_panel(app, ui), app);
     assert!(h.query_by_label("No document").is_some());
     assert!(h.query_by_label("Composite opacity:").is_none());
@@ -162,10 +163,7 @@ fn info_panel_opacity_layout_in_every_theme() {
             assert_opacity(&h, "50%");
             let op = h.get_by_label("Composite opacity:").rect();
             assert!(op.left() >= 0.0 && op.right() < width, "{theme:?} at {width}: {op:?}");
-            assert!(
-                op.top() >= h.get_by_label("K:").rect().bottom() && op.bottom() <= h.get_by_label("X:").rect().top(),
-                "the explicit readout is between colour and position rows: {theme:?} at {width}: {op:?}"
-            );
+            assert!(op.bottom() <= h.get_by_label("X:").rect().top(), "the selectable readout ends before the position rows: {theme:?} at {width}: {op:?}");
             let value = h.query_all_by_label("50%").find(|node| (node.rect().center().y - op.center().y).abs() < 1.0).unwrap().rect();
             assert!(value.right() <= width, "{theme:?} at {width}: {value:?}");
             if let Some(dir) = &directory {
@@ -184,7 +182,7 @@ fn info_panel_opacity_layout_in_every_theme() {
             if let Some(dir) = &directory {
                 h.render().unwrap().save(dir.join(format!("info-opacity-{}-{width}-opaque-background.png", theme.id()))).unwrap();
             }
-            h.state_mut().ui.info_panel.show_composite_opacity = false;
+            h.state_mut().ui.info_panel.readouts = vec![Readout::ActualColor, Readout::Cmyk];
             h.run_steps(2);
             assert!(h.query_by_label("Composite opacity:").is_none());
             if let Some(dir) = &directory {
@@ -194,17 +192,17 @@ fn info_panel_opacity_layout_in_every_theme() {
     }
 }
 
-/// The extra row is absent until explicitly enabled, and toggling it leaves the layer alone.
+/// The opacity block is absent until explicitly enabled, and toggling it leaves the layer alone.
 #[test]
 fn info_panel_composite_opacity_is_optional() {
     let mut app = opacity_app(ColorMode::Rgb, SampleType::U8);
-    app.ui.info_panel.show_composite_opacity = false;
+    app.ui.info_panel.readouts = vec![Readout::ActualColor, Readout::Cmyk];
     let mut h = Harness::builder().with_size(vec2(220.0, 240.0)).build_ui_state(|ui, app| info_panel(app, ui), app);
     h.run_steps(2);
     assert!(h.query_by_label("Composite opacity:").is_none());
-    assert!(h.query_by_label("Op:").is_none());
     for on in [true, false, true] {
-        h.state_mut().ui.info_panel.show_composite_opacity = on;
+        h.state_mut().ui.info_panel.readouts =
+            if on { vec![Readout::ActualColor, Readout::Cmyk, Readout::Opacity] } else { vec![Readout::ActualColor, Readout::Cmyk] };
         h.run_steps(2);
         assert_eq!(h.query_by_label("Composite opacity:").is_some(), on);
         if on {

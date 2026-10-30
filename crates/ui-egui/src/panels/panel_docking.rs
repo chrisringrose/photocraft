@@ -1202,12 +1202,12 @@ fn panel_menu(app: &mut PhotocraftApp, ui: &mut egui::Ui, panel: &str) {
             crate::actions::panel_menu(app, ui);
             ui.separator();
         }
-        "info" => {
-            crate::info_panel_options::panel_menu(app, ui);
-            ui.separator();
-        }
         "histogram" => {
             crate::histogram_panel::panel_menu(app, ui);
+            ui.separator();
+        }
+        "info" => {
+            crate::info_panel_options::panel_menu(app, ui);
             ui.separator();
         }
         _ => {}
