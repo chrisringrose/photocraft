@@ -1,0 +1,64 @@
+{
+  "tree": "6275a0d263cec168ee3f7fe35d19ee5b2812a4d2",
+  "native": "Actual rebuilt Linux aarch64 desktop; Xvfb; software wgpu window, CPU canvas; 1400x1050; 1x scale; Pro Medium; isolated config",
+  "crops": {
+    "info-50.png": {
+      "source": "native-50.png",
+      "box": [
+        1080,
+        78,
+        1400,
+        248
+      ]
+    },
+    "info-100.png": {
+      "source": "native-100.png",
+      "box": [
+        1080,
+        78,
+        1400,
+        248
+      ]
+    },
+    "info-default.png": {
+      "source": "native-default.png",
+      "box": [
+        1080,
+        78,
+        1400,
+        292
+      ]
+    },
+    "selected-layer-50.png": {
+      "source": "native-100.png",
+      "box": [
+        1080,
+        528,
+        1400,
+        745
+      ]
+    },
+    "info-options.png": {
+      "source": "native-options.png",
+      "box": [
+        480,
+        362,
+        920,
+        690
+      ]
+    },
+    "info-multichannel.png": {
+      "source": "native-multichannel.png",
+      "box": [
+        1080,
+        78,
+        1400,
+        365
+      ]
+    }
+  },
+  "opacity_fixture": "Same synthetic white Color Fill layer selected at 50% over transparency then an opaque backdrop. Composite targets independently sampled as alpha .5 then 1.0.",
+  "multichannel_fixture": "Original synthetic 400x300 mode-7 PSD, named black spot inks Cyan 0%, Magenta 100%, Yellow 100%; opened through scoped app.open. Actual Color readout enabled. Each sampler channel uses its own line. No DisplayInfo color values supplied.",
+  "controls": "Defaults Actual Color + CMYK; rejected mixed ui.set preserves readouts; modal menu Undo rejected; Escape closes; ordinary Undo/Redo works; options persisted after restart.",
+  "limits": "Not macOS/Windows input acceptance; native Lab values beyond RGB composite gamut remain unpreserved. Initial mode conversion and legacy layout requests were refused by current capability/custom-layout guards; final fixture used scoped import and window.panel.layout, with no overrides."
+}
