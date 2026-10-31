@@ -1,0 +1,85 @@
+{
+  "head": "c4453750e1fdfd83dd4bc61a115e57aa68a922b0",
+  "tree": "5b58028f3331cc53ca01a7bb90d0706f3dfbd518",
+  "binary_sha256": "d8ac955cf691aa07200ca9cace37b11c7b3569fa6f2c6777bf83bebdd30b3a86",
+  "native_view_cases": [
+    {
+      "scenario": "brush-after",
+      "tool": "Pencil",
+      "zoom": 1.0
+    },
+    {
+      "scenario": "Hand-alt-plain-after",
+      "tool": "Hand",
+      "zoom": 0.5
+    },
+    {
+      "scenario": "Hand-plain-alt-after",
+      "tool": "RotateView",
+      "zoom": 0.5
+    },
+    {
+      "scenario": "Hand-plain-plain-after",
+      "tool": "Hand",
+      "zoom": 1.0
+    },
+    {
+      "scenario": "Hand-alt-plain-plain-after",
+      "tool": "Hand",
+      "zoom": 1.0
+    },
+    {
+      "scenario": "Zoom-alt-plain-after",
+      "tool": "Zoom",
+      "zoom": 0.5
+    },
+    {
+      "scenario": "Zoom-plain-alt-after",
+      "tool": "Zoom",
+      "zoom": 0.5
+    },
+    {
+      "scenario": "Zoom-plain-plain-after",
+      "tool": "Zoom",
+      "zoom": 1.0
+    },
+    {
+      "scenario": "Zoom-alt-plain-plain-after",
+      "tool": "Zoom",
+      "zoom": 1.0
+    }
+  ],
+  "modifiers_latched": true,
+  "hold_keeps_brush": true,
+  "unchanged_document_and_history": true,
+  "selected_tool_persisted": "Pencil",
+  "normal_exits": [
+    0,
+    0
+  ],
+  "action_errors": [],
+  "display": ":212",
+  "window": [
+    1000,
+    800
+  ],
+  "pixels_per_point": 1,
+  "gpu_info": {
+    "adapter": "llvmpipe (LLVM 19.1.7, 128 bits)",
+    "adapters": [
+      "llvmpipe (LLVM 19.1.7, 128 bits)"
+    ],
+    "backend": "gl",
+    "canvas": "cpu",
+    "deviceType": "cpu",
+    "driver": "4.5 (Core Profile) Mesa 25.0.7-2+deb13u1",
+    "fallback": null,
+    "lost": null,
+    "preference": "auto",
+    "present": "autovsync, latency 1",
+    "selected": "cpu",
+    "videoMemoryMb": null
+  },
+  "touch_evidence": "Deterministic egui native/web sequences; no physical touchscreen tested",
+  "first_startup_note": "Sandbox denied local Xvfb listener; unchanged driver succeeded with authorized local-display escalation."
+}

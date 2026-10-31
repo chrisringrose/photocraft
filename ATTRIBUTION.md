@@ -1,0 +1,1 @@
+Native PhotoCraft UI captures and synthetic blank-document fixture: original capture by chrisringrose for this contribution,2026-10-31. Source:local native PhotoCraft app. License:CC0-1.0 for original screenshot captures; PhotoCraft UI and its existing assets retain their original repository licenses. No external artwork or personal photos used.

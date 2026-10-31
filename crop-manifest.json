@@ -1,0 +1,25 @@
+{
+  "crop_box": [
+    0,
+    225,
+    112,
+    305
+  ],
+  "editing": "Identical lossless crops only; no annotations, resizing or altered UI pixels.",
+  "images": [
+    {
+      "source": "native-before-brush.png",
+      "crop": "before-brush-cropped.png",
+      "sha256": "38f2d6b427491d2112731d09b58c8b4a8f8134b1df3fe634d4ee392234a8d734",
+      "width": 112,
+      "height": 80
+    },
+    {
+      "source": "native-after-pencil.png",
+      "crop": "after-pencil-cropped.png",
+      "sha256": "fa78a50d9595938316abf4d271d93c0c8ea9193c0e706ffe0d59d5376c67be0b",
+      "width": 112,
+      "height": 80
+    }
+  ]
+}
